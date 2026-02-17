@@ -1,0 +1,7 @@
+{
+  "name": "Le Cerveau - Lunettes Connectées",
+  "description": "Un module d'IA embarqué pour lunettes connectées aidant les personnes aveugles à détecter les obstacles en temps réel.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
