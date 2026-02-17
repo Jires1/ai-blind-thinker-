@@ -6,12 +6,20 @@ import { AppState, AnalysisResult } from './types';
 // Components
 const Header: React.FC<{ onStop?: () => void }> = ({ onStop }) => (
   <header className="p-4 border-b border-green-900/50 bg-black/80 backdrop-blur-md flex justify-between items-center z-50 relative">
-    <div className="flex items-center gap-2">
-      <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
-      <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.0</h1>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+        <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.0</h1>
+      </div>
+      <span className="text-[9px] font-mono text-amber-500 bg-amber-950/30 px-2 py-0.5 rounded border border-amber-900/50 w-fit">
+        VERSION EXPÉRIMENTALE
+      </span>
     </div>
     <div className="flex items-center gap-4">
-      <div className="text-xs font-mono text-green-700 hidden sm:block">MODALITÉ: VISION_RECON_ASSIST</div>
+      <div className="text-right hidden sm:block">
+        <div className="text-[10px] font-mono text-green-700 uppercase leading-none">DÉVELOPPÉ PAR:</div>
+        <div className="text-xs font-orbitron text-green-500 font-bold">ALIOU ALI</div>
+      </div>
       {onStop && (
         <button 
           onClick={onStop}
