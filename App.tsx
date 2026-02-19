@@ -9,10 +9,10 @@ const Header: React.FC<{ onStop?: () => void }> = ({ onStop }) => (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
       <div className="flex items-center gap-2">
         <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
-        <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.1</h1>
+        <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.2</h1>
       </div>
       <span className="text-[9px] font-mono text-amber-500 bg-amber-950/30 px-2 py-0.5 rounded border border-amber-900/50 w-fit">
-        VERSION EXPÉRIMENTALE
+        MOBILE OPTIMIZED
       </span>
     </div>
     <div className="flex items-center gap-4">
@@ -44,40 +44,35 @@ const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const brainServiceRef = useRef<BrainService | null>(null);
   const lastAlertRef = useRef<string>("");
+  const timerRef = useRef<number | null>(null);
 
-  // Initialize Service
   useEffect(() => {
     brainServiceRef.current = new BrainService();
   }, []);
 
-  // Text to Speech logic
   const speak = useCallback((text: string) => {
-    if (text === "RAS") return;
-    
-    // Simple throttle for the same alert
+    if (text === "RAS" || !text) return;
     if (text === lastAlertRef.current) return;
-    lastAlertRef.current = text;
     
+    lastAlertRef.current = text;
+    window.speechSynthesis.cancel(); // Coupe l'alerte précédente pour la nouvelle
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
-    utterance.rate = 1.2; // Slightly faster for responsiveness
+    utterance.rate = 1.3; // Encore plus rapide pour l'urgence
     window.speechSynthesis.speak(utterance);
     
-    // Clear last alert after 3 seconds
-    setTimeout(() => {
-      lastAlertRef.current = "";
-    }, 3000);
+    setTimeout(() => { lastAlertRef.current = ""; }, 3000);
   }, []);
 
-  // Camera Management
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'environment', 
-          width: { ideal: 640 }, 
-          height: { ideal: 480 },
-          frameRate: { ideal: 15 } // Lower framerate saves battery/CPU
+          width: { ideal: 480 }, // Résolution native plus basse pour moins de CPU
+          height: { ideal: 360 },
+          frameRate: { ideal: 10 } 
         } 
       });
       if (videoRef.current) {
@@ -85,215 +80,149 @@ const App: React.FC = () => {
         setState(prev => ({ ...prev, isActive: true, error: null }));
       }
     } catch (err) {
-      console.error("Camera error:", err);
-      setState(prev => ({ ...prev, error: "Accès caméra refusé ou indisponible." }));
+      setState(prev => ({ ...prev, error: "Caméra indisponible." }));
     }
   };
 
   const stopCamera = useCallback(() => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
     }
     setState(prev => ({ ...prev, isActive: false, isAnalyzing: false, lastResult: null }));
     window.speechSynthesis.cancel();
-    lastAlertRef.current = "";
   }, []);
 
-  // Analysis Loop
-  const captureAndAnalyze = useCallback(async () => {
-    if (!state.isActive || !videoRef.current || !canvasRef.current || !brainServiceRef.current || state.isAnalyzing) return;
+  // ANALYSE ADAPTATIVE : On ne lance la suite qu'une fois la précédente terminée
+  const runAnalysisCycle = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || !brainServiceRef.current) return;
 
     setState(prev => ({ ...prev, isAnalyzing: true }));
-
+    
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    const context = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Optimisation canvas
 
-    if (context) {
-      // OPTIMISATION : Capture basse résolution pour réduire la latence réseau
-      const targetWidth = 400; 
-      const aspectRatio = video.videoHeight / video.videoWidth;
-      const targetHeight = targetWidth * aspectRatio;
+    if (ctx && video.videoWidth > 0) {
+      // ULTRA LOW RES : 320px de large
+      const w = 320;
+      const h = (video.videoHeight / video.videoWidth) * w;
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
       
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      context.drawImage(video, 0, 0, targetWidth, targetHeight);
-      
-      // OPTIMISATION : Compression JPEG plus forte (0.4 au lieu de 0.6)
-      const base64Image = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
+      // ULTRA COMPRESSION : 0.2
+      const base64 = canvas.toDataURL('image/jpeg', 0.2).split(',')[1];
       
       try {
-        const resultText = await brainServiceRef.current.analyzeFrame(base64Image);
-        const status = resultText.includes("RAS") ? 'safe' : 'danger';
+        const result = await brainServiceRef.current.analyzeFrame(base64);
+        const isDanger = !result.includes("RAS");
         
         setState(prev => ({
           ...prev,
           isAnalyzing: false,
           lastResult: {
-            text: resultText,
+            text: result,
             timestamp: Date.now(),
-            status: status as 'danger' | 'safe'
+            status: isDanger ? 'danger' : 'safe'
           }
         }));
 
-        if (status === 'danger') {
-          speak(resultText);
-        }
+        if (isDanger) speak(result);
       } catch (err) {
-        console.error("Analysis failed:", err);
         setState(prev => ({ ...prev, isAnalyzing: false }));
       }
     }
-  }, [state.isActive, state.isAnalyzing, speak]);
 
-  // Main Loop Timer
+    // On planifie le prochain scan seulement APRES la réponse (boucle récursive)
+    // Délai court de 500ms entre deux scans pour laisser respirer le processeur mobile
+    timerRef.current = window.setTimeout(runAnalysisCycle, 800);
+  }, [speak]);
+
   useEffect(() => {
-    let intervalId: number | undefined;
     if (state.isActive) {
-      // OPTIMISATION : Intervalle réduit à 1.8s pour plus de réactivité si la bande passante le permet
-      intervalId = window.setInterval(captureAndAnalyze, 1800); 
-    } else {
-      clearInterval(intervalId);
+      runAnalysisCycle();
+    } else if (timerRef.current) {
+      clearTimeout(timerRef.current);
     }
-    return () => clearInterval(intervalId);
-  }, [state.isActive, captureAndAnalyze]);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [state.isActive, runAnalysisCycle]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-black text-green-500 selection:bg-green-900 selection:text-white overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-black text-green-500 selection:bg-green-900 overflow-hidden font-sans">
       <Header onStop={state.isActive ? stopCamera : undefined} />
 
-      <main className="flex-1 relative flex flex-col md:flex-row p-4 gap-4 overflow-hidden">
-        {/* Camera Feed HUD */}
-        <div className="flex-1 relative rounded-xl border-2 border-green-900 overflow-hidden bg-zinc-900 shadow-[0_0_20px_rgba(0,100,0,0.3)]">
+      <main className="flex-1 relative flex flex-col md:flex-row p-3 gap-3 overflow-hidden">
+        {/* HUD */}
+        <div className="flex-1 relative rounded-xl border border-green-900/50 overflow-hidden bg-black shadow-[0_0_15px_rgba(0,100,0,0.2)]">
           <div className="scanline"></div>
+          <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover transition-opacity duration-500 ${state.isActive ? 'opacity-80' : 'opacity-10'}`} />
           
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            className={`w-full h-full object-cover transition-opacity duration-700 ${state.isActive ? 'opacity-100' : 'opacity-20'}`}
-          />
-          
-          {/* Overlay UI */}
-          <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-start">
-              <div className="p-2 border border-green-500/30 bg-black/50 backdrop-blur-sm rounded">
-                <p className="text-[10px] font-mono uppercase opacity-70">COORD_X: 48.8566</p>
-                <p className="text-[10px] font-mono uppercase opacity-70">COORD_Y: 2.3522</p>
-              </div>
-              <div className="p-2 border border-green-500/30 bg-black/50 backdrop-blur-sm rounded text-right">
-                <p className="text-[10px] font-mono uppercase opacity-70">DATA_OPT: ACTIVE</p>
-                <p className="text-[10px] font-mono uppercase opacity-70">BATT: 88%</p>
-              </div>
+          <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between">
+            <div className="flex justify-between text-[8px] font-mono opacity-50">
+              <div className="bg-black/40 p-1">MODE: FAST_SCAN_v1.2</div>
+              <div className="bg-black/40 p-1">NET: MOBILE_OPTIMIZED</div>
             </div>
 
-            {/* Target Reticle */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-48 h-48 border border-green-500/20 rounded-full flex items-center justify-center">
-                <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-                <div className="absolute w-8 h-[1px] bg-green-500 left-0"></div>
-                <div className="absolute w-8 h-[1px] bg-green-500 right-0"></div>
-                <div className="absolute h-8 w-[1px] bg-green-500 top-0"></div>
-                <div className="absolute h-8 w-[1px] bg-green-500 bottom-0"></div>
-              </div>
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+              <div className="w-32 h-32 border border-green-500 rounded-full"></div>
+              <div className="absolute w-10 h-10 border-t border-l border-green-500 top-[40%] left-[40%]"></div>
             </div>
 
             <div className="flex justify-center">
               {state.isAnalyzing && (
-                <div className="bg-green-600 text-black font-orbitron font-bold px-4 py-1 rounded animate-pulse shadow-[0_0_15px_rgba(22,101,52,0.6)]">
-                  SCAN ULTRA-RAPIDE...
+                <div className="bg-green-600 text-black text-[10px] font-bold px-3 py-0.5 rounded animate-pulse">
+                  TRANSMISSION...
                 </div>
               )}
             </div>
           </div>
 
-          {/* Bouton STOP Flottant dans le HUD */}
           {state.isActive && (
-            <button 
-              onClick={stopCamera}
-              className="absolute bottom-6 right-6 p-4 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all active:scale-95 pointer-events-auto z-20 group"
-              title="Arrêter le programme"
-            >
-              <span className="font-bold font-orbitron text-xs">STOP</span>
-              <div className="absolute -inset-1 rounded-full border border-red-600 animate-ping opacity-25"></div>
+            <button onClick={stopCamera} className="absolute bottom-4 right-4 p-3 bg-red-600 text-white rounded-full pointer-events-auto z-20">
+              <span className="font-bold text-[10px]">OFF</span>
             </button>
           )}
-
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        {/* Sidebar Status */}
-        <div className="w-full md:w-80 flex flex-col gap-4">
-          <div className="bg-zinc-900/80 border border-green-900 p-4 rounded-xl">
-            <h2 className="text-xs font-orbitron text-green-700 mb-3 uppercase tracking-tighter">État du Système</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Caméra</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${state.isActive ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>
-                  {state.isActive ? 'Actif' : 'Inactif'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Latence</span>
-                <span className="px-2 py-0.5 bg-blue-900/40 text-blue-400 rounded text-[10px] font-bold uppercase">
-                  MINIMISÉE
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className={`flex-1 border-2 p-6 rounded-xl flex flex-col items-center justify-center text-center transition-all duration-300 ${
-            state.lastResult?.status === 'danger' 
-              ? 'bg-red-950/30 border-red-600 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]' 
-              : 'bg-zinc-900/80 border-green-900'
+        {/* Status */}
+        <div className="w-full md:w-72 flex flex-col gap-3">
+          <div className={`flex-1 border p-4 rounded-xl flex flex-col items-center justify-center text-center transition-colors duration-200 ${
+            state.lastResult?.status === 'danger' ? 'bg-red-950/40 border-red-600' : 'bg-zinc-900/50 border-green-900/30'
           }`}>
-            <h2 className="text-xs font-orbitron text-zinc-500 mb-4 uppercase tracking-widest">Dernière Alerte</h2>
-            
+            <span className="text-[10px] font-mono opacity-40 uppercase mb-2">Flux de navigation</span>
             {state.lastResult ? (
-              <div className="animate-in fade-in duration-500">
-                <p className={`text-xl font-bold font-orbitron leading-tight ${
-                  state.lastResult.status === 'danger' ? 'text-red-500' : 'text-green-500'
-                }`}>
-                  {state.lastResult.text}
-                </p>
-                <p className="text-[10px] text-zinc-500 mt-2 font-mono">
-                  DÉTECTÉ À: {new Date(state.lastResult.timestamp).toLocaleTimeString()}
-                </p>
-              </div>
+              <p className={`text-lg font-bold font-orbitron leading-tight ${state.lastResult.status === 'danger' ? 'text-red-500' : 'text-green-400'}`}>
+                {state.lastResult.text}
+              </p>
             ) : (
-              <p className="text-zinc-700 font-mono italic text-sm opacity-50">Aucun obstacle détecté</p>
+              <p className="text-zinc-600 text-sm italic">Système en attente</p>
             )}
           </div>
 
-          <div className="flex flex-col gap-2 sticky bottom-4">
-            {!state.isActive ? (
-              <button 
-                onClick={startCamera}
-                className="w-full py-4 bg-green-600 hover:bg-green-500 text-black font-orbitron font-bold rounded-xl transition-all active:scale-95 shadow-[0_4px_0_rgb(22,101,52)]"
-              >
-                ACTIVER LE SYSTÈME
-              </button>
-            ) : (
-              <button 
-                onClick={stopCamera}
-                className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-orbitron font-bold rounded-xl transition-all active:scale-95 shadow-[0_4px_0_rgb(153,27,27)]"
-              >
-                STOPPER LE PROGRAMME
-              </button>
-            )}
-            
-            {state.error && (
-              <p className="text-red-500 text-[10px] text-center font-mono mt-1">{state.error}</p>
-            )}
+          <div className="p-3 bg-zinc-900/30 border border-green-900/20 rounded-lg flex justify-between items-center">
+             <span className="text-[10px] uppercase font-mono opacity-60">Status:</span>
+             <span className={`text-[10px] font-bold ${state.isActive ? 'text-green-500' : 'text-zinc-600'}`}>
+               {state.isActive ? 'RUNNING' : 'STANDBY'}
+             </span>
           </div>
+
+          {!state.isActive ? (
+            <button onClick={startCamera} className="w-full py-4 bg-green-600 text-black font-bold rounded-xl shadow-[0_4px_0_rgb(22,101,52)] active:translate-y-1 active:shadow-none transition-all">
+              DÉMARRER LE CERVEAU
+            </button>
+          ) : (
+            <button onClick={stopCamera} className="w-full py-4 bg-red-900/50 text-red-500 border border-red-900 font-bold rounded-xl">
+              ARRÊTER
+            </button>
+          )}
         </div>
       </main>
 
-      <footer className="p-2 text-center text-[8px] font-mono text-zinc-800 uppercase tracking-[0.3em]">
-        System Architecture: Neural-Link Glasses &bull; AI Model: Gemini-Brain-3 &bull; Dev: Aliou Ali
+      <footer className="p-1 text-center text-[7px] font-mono text-zinc-700 uppercase">
+        Aliou Ali &bull; Experimental v1.2 &bull; Nano-Scan Technology
       </footer>
     </div>
   );
