@@ -2,24 +2,19 @@
 import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_INSTRUCTION = `
-Tu es le "Cerveau", un module d'intelligence artificielle embarqué dans des lunettes connectées pour personnes aveugles.
-TA MISSION : Analyser le flux visuel pour détecter les obstacles immédiats et prévenir l'utilisateur pour éviter une collision.
+Tu es le "Cerveau", IA de navigation pour aveugles.
+MISSION : Détecter obstacles proches au centre de la vue.
 
-RÈGLES D'ANALYSE :
-1. Détection : Identifie les objets ou structures situés au centre de l'image ou occupant une grande partie de la vue (Murs, Personnes, Poteaux, Véhicules, Escaliers, Trous).
-2. Estimation de Proximité (Virtuelle) :
-   - Si un objet occupe moins de 20% de l'image : Il est loin -> IGNORE.
-   - Si un objet occupe plus de 40% de l'image : Il est proche -> ALERTE.
-   - Si un objet bloque la vue (mur, porte fermée) : C'est un obstacle immédiat -> ALERTE PRIORITAIRE.
+RÈGLES RAPIDES :
+- Mur/Porte fermée/Trou/Véhicule/Poteau/Personne bloquant le passage : ALERTE.
+- Si objet occupe >40% de l'image ou est très central : ALERTE.
+- Sinon : RAS.
 
-FORMAT DE SORTIE (Strict) :
-- Si aucun danger immédiat n'est détecté, réponds simplement : "RAS"
-- Si un danger est détecté, génère UNIQUEMENT la phrase : "{Nom_de_l_objet} droit devant, faites attention !"
+FORMAT SORTIE :
+- Danger : "{Objet} droit devant, attention !"
+- Sinon : "RAS"
 
-EXEMPLES :
-- "Une personne droit devant, faites attention !"
-- "Un mur droit devant, faites attention !"
-- "RAS"
+Sois ultra-concis.
 `;
 
 export class BrainService {
@@ -31,11 +26,13 @@ export class BrainService {
 
   async analyzeFrame(base64Image: string): Promise<string> {
     try {
-      const response = await this.ai.models.generateContent({
+      // Utilisation d'une instance fraîche pour garantir la clé API
+      const aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const response = await aiInstance.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
           parts: [
-            { text: "Analyse cet environnement pour la sécurité de l'utilisateur." },
+            { text: "Scan rapide obstacles." },
             {
               inlineData: {
                 mimeType: "image/jpeg",
@@ -46,8 +43,8 @@ export class BrainService {
         },
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.1,
-          topP: 0.95,
+          temperature: 0, // Zéro pour une rapidité et une constance maximale
+          topP: 0.8,
         }
       });
 

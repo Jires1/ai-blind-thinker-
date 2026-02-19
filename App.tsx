@@ -9,7 +9,7 @@ const Header: React.FC<{ onStop?: () => void }> = ({ onStop }) => (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
       <div className="flex items-center gap-2">
         <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
-        <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.0</h1>
+        <h1 className="text-xl font-orbitron font-bold text-green-500 tracking-wider uppercase">LE CERVEAU v1.1</h1>
       </div>
       <span className="text-[9px] font-mono text-amber-500 bg-amber-950/30 px-2 py-0.5 rounded border border-amber-900/50 w-fit">
         VERSION EXPÉRIMENTALE
@@ -60,10 +60,10 @@ const App: React.FC = () => {
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'fr-FR';
-    utterance.rate = 1.1;
+    utterance.rate = 1.2; // Slightly faster for responsiveness
     window.speechSynthesis.speak(utterance);
     
-    // Clear last alert after 3 seconds to allow repeating if same danger persists
+    // Clear last alert after 3 seconds
     setTimeout(() => {
       lastAlertRef.current = "";
     }, 3000);
@@ -73,7 +73,12 @@ const App: React.FC = () => {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } 
+        video: { 
+          facingMode: 'environment', 
+          width: { ideal: 640 }, 
+          height: { ideal: 480 },
+          frameRate: { ideal: 15 } // Lower framerate saves battery/CPU
+        } 
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -107,11 +112,17 @@ const App: React.FC = () => {
     const context = canvas.getContext('2d');
 
     if (context) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // OPTIMISATION : Capture basse résolution pour réduire la latence réseau
+      const targetWidth = 400; 
+      const aspectRatio = video.videoHeight / video.videoWidth;
+      const targetHeight = targetWidth * aspectRatio;
       
-      const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      context.drawImage(video, 0, 0, targetWidth, targetHeight);
+      
+      // OPTIMISATION : Compression JPEG plus forte (0.4 au lieu de 0.6)
+      const base64Image = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
       
       try {
         const resultText = await brainServiceRef.current.analyzeFrame(base64Image);
@@ -141,7 +152,8 @@ const App: React.FC = () => {
   useEffect(() => {
     let intervalId: number | undefined;
     if (state.isActive) {
-      intervalId = window.setInterval(captureAndAnalyze, 2500); // Check every 2.5s
+      // OPTIMISATION : Intervalle réduit à 1.8s pour plus de réactivité si la bande passante le permet
+      intervalId = window.setInterval(captureAndAnalyze, 1800); 
     } else {
       clearInterval(intervalId);
     }
@@ -173,7 +185,7 @@ const App: React.FC = () => {
                 <p className="text-[10px] font-mono uppercase opacity-70">COORD_Y: 2.3522</p>
               </div>
               <div className="p-2 border border-green-500/30 bg-black/50 backdrop-blur-sm rounded text-right">
-                <p className="text-[10px] font-mono uppercase opacity-70">SIGNAL: STRONG</p>
+                <p className="text-[10px] font-mono uppercase opacity-70">DATA_OPT: ACTIVE</p>
                 <p className="text-[10px] font-mono uppercase opacity-70">BATT: 88%</p>
               </div>
             </div>
@@ -191,8 +203,8 @@ const App: React.FC = () => {
 
             <div className="flex justify-center">
               {state.isAnalyzing && (
-                <div className="bg-green-600 text-black font-orbitron font-bold px-4 py-1 rounded animate-pulse">
-                  SCAN EN COURS...
+                <div className="bg-green-600 text-black font-orbitron font-bold px-4 py-1 rounded animate-pulse shadow-[0_0_15px_rgba(22,101,52,0.6)]">
+                  SCAN ULTRA-RAPIDE...
                 </div>
               )}
             </div>
@@ -225,9 +237,9 @@ const App: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">IA (Cerveau)</span>
+                <span className="text-sm font-medium">Latence</span>
                 <span className="px-2 py-0.5 bg-blue-900/40 text-blue-400 rounded text-[10px] font-bold uppercase">
-                  {state.isActive ? 'Analyse...' : 'Veille'}
+                  MINIMISÉE
                 </span>
               </div>
             </div>
@@ -281,7 +293,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="p-2 text-center text-[8px] font-mono text-zinc-800 uppercase tracking-[0.3em]">
-        System Architecture: Neural-Link Glasses &bull; AI Model: Gemini-Brain-3 &bull; Privacy Protected
+        System Architecture: Neural-Link Glasses &bull; AI Model: Gemini-Brain-3 &bull; Dev: Aliou Ali
       </footer>
     </div>
   );
