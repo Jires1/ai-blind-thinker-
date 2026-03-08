@@ -21,22 +21,11 @@ export class BrainService {
     }
 
     try {
-      let apiKey = "";
+      // Sur Vite/Vercel, seule la variable VITE_ est exposée au navigateur
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
       
-      // 1. Priorité absolue aux variables d'environnement (Sécurité)
-      try {
-        apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
-      } catch (e) {}
-
-      if (!apiKey) {
-        try {
-          apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
-        } catch (e) {}
-      }
-      
-      // 2. Si aucune clé n'est trouvée, on arrête tout
-      if (!apiKey || apiKey.includes("VOTRE_CLE")) {
-        return "ERREUR : Clé API manquante. Ajoutez VITE_GEMINI_API_KEY dans les variables d'environnement Vercel.";
+      if (!apiKey || apiKey.length < 10 || apiKey.includes("VOTRE_CLE")) {
+        return "ERREUR : Configuration Vercel incorrecte. Nommez la variable : VITE_GEMINI_API_KEY";
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -60,16 +49,14 @@ export class BrainService {
       return text || "RAS";
 
     } catch (error: any) {
-      console.error("Erreur de communication IA:", error);
-      
+      console.error("Erreur IA:", error);
       const msg = error.message || "";
-      // Détection spécifique de la révocation ou clé invalide
-      if (msg.includes("API key not valid") || msg.includes("403") || msg.includes("revoked")) {
-        return "ERREUR : Clé API révoquée ou invalide. Générez-en une nouvelle sur Google AI Studio et mettez à jour Vercel.";
-      }
-      if (msg.includes("quota")) return "ERREUR : Quota dépassé.";
       
-      return `ERREUR IA : ${msg.substring(0, 60)}`;
+      if (msg.includes("403") || msg.includes("API key not valid") || msg.includes("revoked")) {
+        return "ERREUR : La clé API dans Vercel est invalide ou révoquée. Créez-en une NOUVELLE.";
+      }
+      
+      return `ERREUR : ${msg.substring(0, 50)}`;
     }
   }
 }
