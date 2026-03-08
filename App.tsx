@@ -164,27 +164,41 @@ const App: React.FC = () => {
         return;
       }
 
-      const constraints: MediaStreamConstraints = {
-        video: {
-          deviceId: state.selectedCameraId ? { exact: state.selectedCameraId } : undefined,
-          facingMode: state.selectedCameraId ? undefined : 'environment',
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 15 }
-        }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Tentative de connexion caméra avec gestion d'erreurs robuste pour Android
+      let stream: MediaStream;
+      
+      try {
+        // Option 1: Essayer avec le deviceId sélectionné (plus souple que 'exact')
+        const constraints = {
+          video: {
+            deviceId: state.selectedCameraId ? { ideal: state.selectedCameraId } : undefined,
+            facingMode: state.selectedCameraId ? undefined : 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        console.warn("Échec première tentative caméra, essai fallback...", e);
+        // Option 2: Fallback générique (très important pour Android)
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } 
+        });
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          setState(prev => ({ ...prev, isActive: true, error: null }));
-        };
+        // Important pour mobile: s'assurer que le play() est appelé explicitement
+        await videoRef.current.play();
+        
+        setState(prev => ({ ...prev, isActive: true, error: null }));
+        
+        // Rafraîchir la liste des caméras pour avoir les labels maintenant que la permission est accordée
+        fetchCameras();
       }
     } catch (err) {
       console.error("Camera Error:", err);
-      setState(prev => ({ ...prev, error: "Erreur d'accès à la caméra. Vérifiez les permissions." }));
+      setState(prev => ({ ...prev, error: "Impossible d'accéder à la caméra. Vérifiez les permissions dans les réglages de votre navigateur Android." }));
     }
   };
 
