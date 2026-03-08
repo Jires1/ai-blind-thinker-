@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Volume2 } from 'lucide-react';
 import { BrainService } from './geminiService';
 import { AppState, AnalysisResult } from './types';
 
@@ -133,22 +134,41 @@ const App: React.FC = () => {
     if (text === lastAlertRef.current) return;
     
     lastAlertRef.current = text;
-    window.speechSynthesis.cancel(); 
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'fr-FR';
-    utterance.rate = 1.3;
-    utterance.pitch = 1.0;
-    window.speechSynthesis.speak(utterance);
-    
-    // Reset de la mémoire d'alerte pour permettre la répétition si nécessaire
-    setTimeout(() => { lastAlertRef.current = ""; }, 4000);
+    try {
+      // Sur mobile, on évite de cancel() trop brutalement
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'fr-FR';
+      utterance.rate = 1.0; // Vitesse normale pour mobile
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // Correction spécifique pour iOS/Android : s'assurer qu'une voix est chargée
+      const voices = window.speechSynthesis.getVoices();
+      const frVoice = voices.find(v => v.lang.startsWith('fr'));
+      if (frVoice) utterance.voice = frVoice;
+
+      window.speechSynthesis.speak(utterance);
+      
+      // Reset de la mémoire d'alerte
+      setTimeout(() => { lastAlertRef.current = ""; }, 5000);
+    } catch (e) {
+      console.error("Speech error:", e);
+    }
   }, []);
 
   const startCamera = async () => {
     try {
-      // DÉVERROUILLAGE AUDIO
-      const silentWakeUp = new SpeechSynthesisUtterance("");
+      // DÉVERROUILLAGE AUDIO (Crucial pour Mobile)
+      // On joue un son vide ET on initialise les voix
+      window.speechSynthesis.cancel();
+      const silentWakeUp = new SpeechSynthesisUtterance("Initialisation");
+      silentWakeUp.volume = 0; // Muet mais actif
+      silentWakeUp.lang = 'fr-FR';
       window.speechSynthesis.speak(silentWakeUp);
 
       if (state.isBlynkMode) {
@@ -557,9 +577,17 @@ const App: React.FC = () => {
           </div>
 
           {/* Affichage Résultat */}
-          <div className={`order-3 border-2 p-4 rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${
+          <div className={`order-3 border-2 p-4 rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 relative min-h-[100px] ${
             state.lastResult?.status === 'danger' ? 'bg-red-950/40 border-red-500' : 'bg-zinc-900/40 border-green-900/40'
           }`}>
+            <button 
+              onClick={() => speak("Test audio Aliou Ali")}
+              className="absolute top-2 right-2 p-2 bg-zinc-800/50 rounded-full hover:bg-zinc-700 transition-colors pointer-events-auto z-30"
+              title="Tester l'audio"
+            >
+              <Volume2 size={14} className="text-zinc-400" />
+            </button>
+
             <h2 className="text-[8px] font-orbitron text-zinc-500 mb-2 uppercase tracking-widest">Analyse IA</h2>
             {state.lastResult ? (
               <p className={`text-lg font-bold font-orbitron uppercase ${state.lastResult.status === 'danger' ? 'text-red-500' : 'text-green-400'}`}>
