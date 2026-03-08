@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const brainServiceRef = useRef<BrainService | null>(null);
   const lastAlertRef = useRef<string>("");
   const timerRef = useRef<number | null>(null);
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     const checkApiKey = async () => {
@@ -215,6 +216,7 @@ const App: React.FC = () => {
 
   const stopCamera = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    isProcessingRef.current = false;
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
@@ -224,136 +226,141 @@ const App: React.FC = () => {
   }, []);
 
   const runAnalysisCycle = useCallback(async () => {
-    if (!brainServiceRef.current || !isActiveRef.current) return;
+    if (!brainServiceRef.current || !isActiveRef.current || isProcessingRef.current) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+    isProcessingRef.current = true;
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
 
-    let source: HTMLVideoElement | HTMLImageElement | null = null;
-    let isReady = false;
+      let source: HTMLVideoElement | HTMLImageElement | null = null;
+      let isReady = false;
 
-    if (state.isBlynkMode) {
+      if (state.isBlynkMode) {
+        setState(prev => ({ ...prev, isAnalyzing: true }));
+        try {
+          const blynkUrl = `https://${state.blynkRegion}.blynk.cloud/external/api/get?token=${state.blynkToken}&${state.blynkPin}`;
+          const response = await fetch(blynkUrl);
+          let data = await response.text();
+          
+          // Nettoyage des données Blynk (enlève les guillemets et crochets éventuels)
+          data = data.replace(/["\[\]]/g, '').trim();
+          setState(prev => ({ ...prev, blynkData: data }));
+          
+          if (data && (data.startsWith('http') || data.startsWith('data:image'))) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = data;
+            
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              const timeout = setTimeout(() => reject(new Error("Timeout")), 8000);
+              img.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error("Image inaccessible"));
+              };
+            });
+            
+            const targetW = 480;
+            const targetH = (img.height / img.width) * targetW;
+            canvas.width = targetW;
+            canvas.height = targetH;
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+            const base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
+            
+            const result = await brainServiceRef.current.analyzeFrame(base64);
+            const isDanger = result && !result.toLowerCase().includes("ras") && !result.toLowerCase().includes("erreur");
+            
+            setState(prev => ({
+              ...prev,
+              isAnalyzing: false,
+              lastResult: { text: result || "Analyse...", timestamp: Date.now(), status: isDanger ? 'danger' : 'safe' }
+            }));
+            
+            if (isDanger) speak(result);
+          } else {
+            setState(prev => ({ ...prev, isAnalyzing: true })); // Keep analyzing state for next poll
+          }
+        } catch (err) {
+          console.error("Blynk Error:", err);
+          setState(prev => ({ ...prev, isAnalyzing: false }));
+        }
+        
+        if (isActiveRef.current) {
+          timerRef.current = window.setTimeout(runAnalysisCycle, 6000);
+        }
+        return;
+      }
+
+      if (state.isEsp32Mode) {
+        source = esp32ImgRef.current;
+        isReady = !!(source && source.complete && source.naturalWidth > 0);
+      } else {
+        source = videoRef.current;
+        isReady = !!(source && (source as HTMLVideoElement).readyState === 4);
+      }
+
+      if (!isReady || !source) {
+        if (isActiveRef.current) {
+          timerRef.current = window.setTimeout(runAnalysisCycle, 500);
+        }
+        return;
+      }
+
       setState(prev => ({ ...prev, isAnalyzing: true }));
-      try {
-        const blynkUrl = `https://${state.blynkRegion}.blynk.cloud/external/api/get?token=${state.blynkToken}&${state.blynkPin}`;
-        const response = await fetch(blynkUrl);
-        let data = await response.text();
+      
+      const sourceWidth = state.isEsp32Mode ? (source as HTMLImageElement).naturalWidth : (source as HTMLVideoElement).videoWidth;
+      const sourceHeight = state.isEsp32Mode ? (source as HTMLImageElement).naturalHeight : (source as HTMLVideoElement).videoHeight;
+
+      if (sourceWidth > 0) {
+        // QUALITÉ AMÉLIORÉE POUR DÉTECTION
+        const targetW = 480;
+        const targetH = (sourceHeight / sourceWidth) * targetW;
+        canvas.width = targetW;
+        canvas.height = targetH;
+        ctx.drawImage(source, 0, 0, targetW, targetH);
         
-        // Nettoyage des données Blynk (enlève les guillemets et crochets éventuels)
-        data = data.replace(/["\[\]]/g, '').trim();
-        setState(prev => ({ ...prev, blynkData: data }));
+        let base64 = "";
+        try {
+          base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
+        } catch (e) {
+          console.error("Canvas Tainted:", e);
+          setState(prev => ({ 
+            ...prev, 
+            isAnalyzing: false, 
+            error: "Sécurité : Impossible d'analyser le flux ESP32 sans CORS. Activez le mode CORS ou utilisez un flux compatible." 
+          }));
+          return;
+        }
         
-        if (data && (data.startsWith('http') || data.startsWith('data:image'))) {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.src = data;
-          
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            const timeout = setTimeout(() => reject(new Error("Timeout")), 8000);
-            img.onerror = () => {
-              clearTimeout(timeout);
-              reject(new Error("Image inaccessible"));
-            };
-          });
-          
-          const targetW = 480;
-          const targetH = (img.height / img.width) * targetW;
-          canvas.width = targetW;
-          canvas.height = targetH;
-          ctx.drawImage(img, 0, 0, targetW, targetH);
-          const base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
-          
+        try {
           const result = await brainServiceRef.current.analyzeFrame(base64);
           const isDanger = result && !result.toLowerCase().includes("ras") && !result.toLowerCase().includes("erreur");
           
           setState(prev => ({
             ...prev,
             isAnalyzing: false,
-            lastResult: { text: result || "Analyse...", timestamp: Date.now(), status: isDanger ? 'danger' : 'safe' }
+            lastResult: {
+              text: result || "Analyse en cours...",
+              timestamp: Date.now(),
+              status: isDanger ? 'danger' : 'safe'
+            }
           }));
-          
+
           if (isDanger) speak(result);
-        } else {
-          setState(prev => ({ ...prev, isAnalyzing: true })); // Keep analyzing state for next poll
+        } catch (err) {
+          console.error("Cycle Error:", err);
+          setState(prev => ({ ...prev, isAnalyzing: false }));
         }
-      } catch (err) {
-        console.error("Blynk Error:", err);
-        setState(prev => ({ ...prev, isAnalyzing: false }));
       }
-      
+
       if (isActiveRef.current) {
-        timerRef.current = window.setTimeout(runAnalysisCycle, 4000);
+        timerRef.current = window.setTimeout(runAnalysisCycle, 6000);
       }
-      return;
-    }
-
-    if (state.isEsp32Mode) {
-      source = esp32ImgRef.current;
-      isReady = !!(source && source.complete && source.naturalWidth > 0);
-    } else {
-      source = videoRef.current;
-      isReady = !!(source && (source as HTMLVideoElement).readyState === 4);
-    }
-
-    if (!isReady || !source) {
-      if (isActiveRef.current) {
-        timerRef.current = window.setTimeout(runAnalysisCycle, 500);
-      }
-      return;
-    }
-
-    setState(prev => ({ ...prev, isAnalyzing: true }));
-    
-    const sourceWidth = state.isEsp32Mode ? (source as HTMLImageElement).naturalWidth : (source as HTMLVideoElement).videoWidth;
-    const sourceHeight = state.isEsp32Mode ? (source as HTMLImageElement).naturalHeight : (source as HTMLVideoElement).videoHeight;
-
-    if (sourceWidth > 0) {
-      // QUALITÉ AMÉLIORÉE POUR DÉTECTION
-      const targetW = 480;
-      const targetH = (sourceHeight / sourceWidth) * targetW;
-      canvas.width = targetW;
-      canvas.height = targetH;
-      ctx.drawImage(source, 0, 0, targetW, targetH);
-      
-      let base64 = "";
-      try {
-        base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
-      } catch (e) {
-        console.error("Canvas Tainted:", e);
-        setState(prev => ({ 
-          ...prev, 
-          isAnalyzing: false, 
-          error: "Sécurité : Impossible d'analyser le flux ESP32 sans CORS. Activez le mode CORS ou utilisez un flux compatible." 
-        }));
-        return;
-      }
-      
-      try {
-        const result = await brainServiceRef.current.analyzeFrame(base64);
-        const isDanger = result && !result.toLowerCase().includes("ras") && !result.toLowerCase().includes("erreur");
-        
-        setState(prev => ({
-          ...prev,
-          isAnalyzing: false,
-          lastResult: {
-            text: result || "Analyse en cours...",
-            timestamp: Date.now(),
-            status: isDanger ? 'danger' : 'safe'
-          }
-        }));
-
-        if (isDanger) speak(result);
-      } catch (err) {
-        console.error("Cycle Error:", err);
-        setState(prev => ({ ...prev, isAnalyzing: false }));
-      }
-    }
-
-    if (isActiveRef.current) {
-      timerRef.current = window.setTimeout(runAnalysisCycle, 1000);
+    } finally {
+      isProcessingRef.current = false;
     }
   }, [speak, state.isEsp32Mode, state.isBlynkMode, state.blynkRegion, state.blynkToken, state.blynkPin]);
 

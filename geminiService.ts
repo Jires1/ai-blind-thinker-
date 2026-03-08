@@ -55,6 +55,9 @@ export class BrainService {
       if (msg.includes("403") || msg.includes("API key not valid") || msg.includes("revoked")) {
         return "ERREUR : La clé API dans Vercel est invalide ou révoquée. Créez-en une NOUVELLE.";
       }
+      if (msg.includes("429") || msg.includes("quota")) {
+        return "ERREUR : Trop de requêtes (Limite atteinte). Attendez 10 secondes.";
+      }
       
       return `ERREUR : ${msg.substring(0, 50)}`;
     }
