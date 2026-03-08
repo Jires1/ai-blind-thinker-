@@ -49,6 +49,11 @@ const App: React.FC = () => {
     blynkRegion: 'ny3',
   });
 
+  const isActiveRef = useRef(false);
+  useEffect(() => {
+    isActiveRef.current = state.isActive;
+  }, [state.isActive]);
+
   const [esp32Status, setEsp32Status] = useState<'idle' | 'loading' | 'connected' | 'error'>('idle');
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -199,7 +204,7 @@ const App: React.FC = () => {
   }, []);
 
   const runAnalysisCycle = useCallback(async () => {
-    if (!brainServiceRef.current || !state.isActive) return;
+    if (!brainServiceRef.current || !isActiveRef.current) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -252,13 +257,16 @@ const App: React.FC = () => {
           
           if (isDanger) speak(result);
         } else {
-          setState(prev => ({ ...prev, isAnalyzing: false }));
+          setState(prev => ({ ...prev, isAnalyzing: true })); // Keep analyzing state for next poll
         }
       } catch (err) {
         console.error("Blynk Error:", err);
         setState(prev => ({ ...prev, isAnalyzing: false }));
       }
-      timerRef.current = window.setTimeout(runAnalysisCycle, 4000);
+      
+      if (isActiveRef.current) {
+        timerRef.current = window.setTimeout(runAnalysisCycle, 4000);
+      }
       return;
     }
 
@@ -271,7 +279,9 @@ const App: React.FC = () => {
     }
 
     if (!isReady || !source) {
-      timerRef.current = window.setTimeout(runAnalysisCycle, 500);
+      if (isActiveRef.current) {
+        timerRef.current = window.setTimeout(runAnalysisCycle, 500);
+      }
       return;
     }
 
@@ -322,9 +332,10 @@ const App: React.FC = () => {
       }
     }
 
-    // Prochain scan adaptatif : 1 seconde de pause pour économiser la batterie mobile
-    timerRef.current = window.setTimeout(runAnalysisCycle, 1000);
-  }, [speak, state.isActive, state.isEsp32Mode]);
+    if (isActiveRef.current) {
+      timerRef.current = window.setTimeout(runAnalysisCycle, 1000);
+    }
+  }, [speak, state.isEsp32Mode, state.isBlynkMode, state.blynkRegion, state.blynkToken, state.blynkPin]);
 
   useEffect(() => {
     if (state.isActive) {

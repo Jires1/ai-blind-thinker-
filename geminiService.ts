@@ -23,12 +23,16 @@ export class BrainService {
     if (!base64Image) return "RAS";
 
     try {
-      // Priorité à la clé de l'environnement, sinon clé de secours
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || 'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
+      // Priorité à la clé de l'environnement (Vite/Vercel support)
+      // Note: process.env est utilisé par AI Studio, import.meta.env par Vite/Vercel
+      const apiKey = 
+        process.env.GEMINI_API_KEY || 
+        process.env.API_KEY || 
+        (import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null) ||
+        'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
       
       if (!apiKey || apiKey === 'VOTRE_CLE_ICI') {
-        console.error("Clé API manquante pour le prototype");
-        return "ERREUR : Clé API non configurée";
+        return "ERREUR : Clé API non configurée. Veuillez la définir dans Vercel (VITE_GEMINI_API_KEY).";
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -44,16 +48,24 @@ export class BrainService {
         },
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.4, // Un peu plus de flexibilité
+          temperature: 0.4,
         }
       });
 
       const text = response.text?.trim();
       return text || "RAS";
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur de communication IA:", error);
-      // En cas d'erreur de quota ou réseau, on renvoie RAS pour ne pas paniquer l'utilisateur inutilement
-      return "RAS";
+      
+      // Message d'erreur plus explicite pour le débogage sur Vercel
+      if (error.message?.includes("API key not valid")) {
+        return "ERREUR : Clé API invalide ou expirée.";
+      }
+      if (error.message?.includes("quota")) {
+        return "ERREUR : Quota API dépassé.";
+      }
+      
+      return `ERREUR IA : ${error.message || "Problème de connexion"}`;
     }
   }
 }
