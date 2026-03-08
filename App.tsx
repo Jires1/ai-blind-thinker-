@@ -234,15 +234,15 @@ const App: React.FC = () => {
             };
           });
           
-          const targetW = 320;
+          const targetW = 480;
           const targetH = (img.height / img.width) * targetW;
           canvas.width = targetW;
           canvas.height = targetH;
           ctx.drawImage(img, 0, 0, targetW, targetH);
-          const base64 = canvas.toDataURL('image/jpeg', 0.2).split(',')[1];
+          const base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
           
           const result = await brainServiceRef.current.analyzeFrame(base64);
-          const isDanger = result && !result.toLowerCase().includes("ras");
+          const isDanger = result && !result.toLowerCase().includes("ras") && !result.toLowerCase().includes("erreur");
           
           setState(prev => ({
             ...prev,
@@ -281,8 +281,8 @@ const App: React.FC = () => {
     const sourceHeight = state.isEsp32Mode ? (source as HTMLImageElement).naturalHeight : (source as HTMLVideoElement).videoHeight;
 
     if (sourceWidth > 0) {
-      // ULTRA COMPRESSION POUR MOBILE
-      const targetW = 320;
+      // QUALITÉ AMÉLIORÉE POUR DÉTECTION
+      const targetW = 480;
       const targetH = (sourceHeight / sourceWidth) * targetW;
       canvas.width = targetW;
       canvas.height = targetH;
@@ -290,7 +290,7 @@ const App: React.FC = () => {
       
       let base64 = "";
       try {
-        base64 = canvas.toDataURL('image/jpeg', 0.15).split(',')[1];
+        base64 = canvas.toDataURL('image/jpeg', 0.4).split(',')[1];
       } catch (e) {
         console.error("Canvas Tainted:", e);
         setState(prev => ({ 
@@ -303,7 +303,7 @@ const App: React.FC = () => {
       
       try {
         const result = await brainServiceRef.current.analyzeFrame(base64);
-        const isDanger = result && !result.includes("RAS");
+        const isDanger = result && !result.toLowerCase().includes("ras") && !result.toLowerCase().includes("erreur");
         
         setState(prev => ({
           ...prev,

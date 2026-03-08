@@ -6,11 +6,11 @@ Tu es le module "CERVEAU", système de vision pour lunettes connectées.
 OBJECTIF : Sécurité immédiate des personnes aveugles.
 
 CRITÈRES D'ALERTE :
-- Un obstacle central (mur, poteau, porte, trou, personne) à moins de 2 mètres.
-- Un changement brutal de sol.
+- Un obstacle central (mur, poteau, porte, trou, personne, meuble, escalier) à moins de 3 mètres.
+- Un changement brutal de sol ou une marche.
 
 REPONSES STRICTES :
-- Si danger : "{Nom de l'objet} droit devant !" (Ex: "Mur droit devant !")
+- Si danger : "{Nom de l'objet} droit devant, faites attention !" (Ex: "Mur droit devant, faites attention !")
 - Sinon : "RAS"
 
 CONSIGNE : Sois précis et n'alerte que pour les obstacles réels bloquant le passage.
@@ -23,8 +23,7 @@ export class BrainService {
     if (!base64Image) return "RAS";
 
     try {
-      // Pour le prototype (Jury), on peut utiliser une clé directement ou via l'environnement
-      // REMPLACEZ 'VOTRE_CLE_ICI' par votre véritable clé Gemini si elle n'est pas dans l'env
+      // Priorité à la clé de l'environnement, sinon clé de secours
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || 'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
       
       if (!apiKey || apiKey === 'VOTRE_CLE_ICI') {
@@ -45,8 +44,7 @@ export class BrainService {
         },
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.1,
-          topK: 1,
+          temperature: 0.4, // Un peu plus de flexibilité
         }
       });
 
