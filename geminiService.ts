@@ -2,37 +2,47 @@
 import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_INSTRUCTION = `
-Tu es le module "CERVEAU", système de vision pour lunettes connectées.
-OBJECTIF : Sécurité immédiate des personnes aveugles.
+Tu es le module "CERVEAU", système de vision pour lunettes connectées pour aveugles.
+Analyse l'image et identifie les obstacles (murs, personnes, meubles, escaliers, trous, portes).
 
-CRITÈRES D'ALERTE :
-- Un obstacle central (mur, poteau, porte, trou, personne, meuble, escalier) à moins de 3 mètres.
-- Un changement brutal de sol ou une marche.
+RÈGLES DE RÉPONSE :
+1. Si tu vois un obstacle à moins de 3 mètres : Réponds UNIQUEMENT "{Nom de l'objet} droit devant, faites attention !"
+2. Si le chemin est libre : Réponds UNIQUEMENT "RAS"
 
-REPONSES STRICTES :
-- Si danger : "{Nom de l'objet} droit devant, faites attention !" (Ex: "Mur droit devant, faites attention !")
-- Sinon : "RAS"
-
-CONSIGNE : Sois précis et n'alerte que pour les obstacles réels bloquant le passage.
+Sois extrêmement vigilant. Si tu as un doute sur un objet, signale-le par sécurité.
 `;
 
 export class BrainService {
   constructor() {}
 
   async analyzeFrame(base64Image: string): Promise<string> {
-    if (!base64Image) return "RAS";
+    if (!base64Image || base64Image.length < 100) {
+      return "ERREUR : Image corrompue ou vide.";
+    }
 
     try {
-      // Priorité à la clé de l'environnement (Vite/Vercel support)
-      // Note: process.env est utilisé par AI Studio, import.meta.env par Vite/Vercel
-      const apiKey = 
-        process.env.GEMINI_API_KEY || 
-        process.env.API_KEY || 
-        (import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : null) ||
-        'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
+      // Détection de la clé API avec support multi-environnement
+      let apiKey = "";
+      
+      // 1. Essayer import.meta.env (Vite/Vercel standard)
+      try {
+        apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
+      } catch (e) {}
+
+      // 2. Essayer process.env (AI Studio / Node fallback)
+      if (!apiKey) {
+        try {
+          apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+        } catch (e) {}
+      }
+
+      // 3. Clé de secours (si aucune autre n'est trouvée)
+      if (!apiKey) {
+        apiKey = 'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
+      }
       
       if (!apiKey || apiKey === 'VOTRE_CLE_ICI') {
-        return "ERREUR : Clé API non configurée. Veuillez la définir dans Vercel (VITE_GEMINI_API_KEY).";
+        return "ERREUR : Clé API non configurée. Ajoutez VITE_GEMINI_API_KEY dans Vercel.";
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -48,24 +58,29 @@ export class BrainService {
         },
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.4,
+          temperature: 0.7, // Augmenté pour plus de "créativité" dans la détection
         }
       });
 
       const text = response.text?.trim();
-      return text || "RAS";
+      
+      if (!text) return "RAS";
+      
+      // Si l'IA répond par quelque chose de trop long ou bizarre, on essaie de filtrer
+      if (text.length > 100) {
+        return text.substring(0, 100) + "...";
+      }
+
+      return text;
     } catch (error: any) {
       console.error("Erreur de communication IA:", error);
       
-      // Message d'erreur plus explicite pour le débogage sur Vercel
-      if (error.message?.includes("API key not valid")) {
-        return "ERREUR : Clé API invalide ou expirée.";
-      }
-      if (error.message?.includes("quota")) {
-        return "ERREUR : Quota API dépassé.";
-      }
+      const msg = error.message || "";
+      if (msg.includes("API key not valid")) return "ERREUR : Clé API invalide.";
+      if (msg.includes("quota")) return "ERREUR : Quota dépassé.";
+      if (msg.includes("safety")) return "RAS (Bloqué par filtre de sécurité)";
       
-      return `ERREUR IA : ${error.message || "Problème de connexion"}`;
+      return `ERREUR IA : ${msg.substring(0, 50)}`;
     }
   }
 }
