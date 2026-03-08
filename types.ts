@@ -10,4 +10,13 @@ export interface AppState {
   isAnalyzing: boolean;
   lastResult: AnalysisResult | null;
   error: string | null;
+  selectedCameraId: string;
+  esp32Url: string;
+  isEsp32Mode: boolean;
+  useCors: boolean;
+  blynkToken: string;
+  blynkPin: string;
+  isBlynkMode: boolean;
+  blynkData: string | null;
+  blynkRegion: string;
 }

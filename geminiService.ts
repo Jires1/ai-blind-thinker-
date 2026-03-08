@@ -23,11 +23,11 @@ export class BrainService {
     if (!base64Image) return "RAS";
 
     try {
-      // On initialise l'instance à chaque appel pour garantir la récupération de la clé process.env à jour
-      const apiKey = process.env.API_KEY;
+      // On utilise la variable d'environnement standard GEMINI_API_KEY
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        console.error("Clé API manquante dans l'environnement");
-        return "Erreur Système";
+        console.error("Clé API GEMINI_API_KEY manquante");
+        return "Erreur Configuration";
       }
 
       const ai = new GoogleGenAI({ apiKey });
