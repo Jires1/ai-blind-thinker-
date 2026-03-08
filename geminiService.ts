@@ -23,11 +23,13 @@ export class BrainService {
     if (!base64Image) return "RAS";
 
     try {
-      // On utilise la variable d'environnement standard GEMINI_API_KEY
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.error("Clé API GEMINI_API_KEY manquante");
-        return "Erreur Configuration";
+      // Pour le prototype (Jury), on peut utiliser une clé directement ou via l'environnement
+      // REMPLACEZ 'VOTRE_CLE_ICI' par votre véritable clé Gemini si elle n'est pas dans l'env
+      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || 'AIzaSyASIVpkeby03oDQd_f11HWdBeJ6vz19dng';
+      
+      if (!apiKey || apiKey === 'VOTRE_CLE_ICI') {
+        console.error("Clé API manquante pour le prototype");
+        return "ERREUR : Clé API non configurée";
       }
 
       const ai = new GoogleGenAI({ apiKey });

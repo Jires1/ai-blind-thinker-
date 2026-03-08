@@ -59,9 +59,25 @@ const App: React.FC = () => {
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const checkApiKey = async () => {
+      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey()) && !process.env.GEMINI_API_KEY && !process.env.API_KEY) {
+        setState(prev => ({ ...prev, error: "Clé API manquante. Veuillez cliquer sur 'Configurer Clé API' pour continuer." }));
+      }
+    };
+    
     brainServiceRef.current = new BrainService();
     fetchCameras();
+    checkApiKey();
   }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setState(prev => ({ ...prev, error: null }));
+      // On recrée le service pour s'assurer qu'il utilise la nouvelle clé
+      brainServiceRef.current = new BrainService();
+    }
+  };
 
   const fetchCameras = async () => {
     try {
@@ -617,8 +633,16 @@ const App: React.FC = () => {
           )}
 
           {state.error && (
-            <div className="p-2 bg-red-900/20 border border-red-900/40 rounded-lg">
+            <div className="p-2 bg-red-900/20 border border-red-900/40 rounded-lg space-y-2">
               <p className="text-red-500 text-[9px] text-center font-mono animate-pulse">{state.error}</p>
+              {state.error.includes("Clé API") && (
+                <button 
+                  onClick={handleOpenKeySelector}
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded uppercase transition-all"
+                >
+                  Configurer Clé API
+                </button>
+              )}
             </div>
           )}
         </div>

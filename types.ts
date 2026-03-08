@@ -20,3 +20,12 @@ export interface AppState {
   blynkData: string | null;
   blynkRegion: string;
 }
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
