@@ -334,12 +334,12 @@ const App: React.FC = () => {
   }, [state.isActive, runAnalysisCycle]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-black text-green-500 selection:bg-green-900 overflow-hidden font-sans">
+    <div className="min-h-screen flex flex-col bg-black text-green-500 selection:bg-green-900 font-sans">
       <Header onStop={state.isActive ? stopCamera : undefined} />
 
-      <main className="flex-1 relative flex flex-col md:flex-row p-3 gap-3 overflow-hidden">
+      <main className="flex-1 relative flex flex-col md:flex-row p-3 pb-20 md:pb-3 gap-3 overflow-y-auto md:overflow-hidden">
         {/* HUD de Vision */}
-        <div className="flex-1 relative rounded-xl border border-green-900/50 overflow-hidden bg-zinc-950 shadow-[0_0_20px_rgba(0,255,0,0.1)]">
+        <div className="flex-none h-[300px] md:flex-1 relative rounded-xl border border-green-900/50 overflow-hidden bg-zinc-950 shadow-[0_0_20px_rgba(0,255,0,0.1)]">
           <div className="scanline"></div>
           {state.isEsp32Mode ? (
             <div className="w-full h-full relative">
@@ -435,51 +435,48 @@ const App: React.FC = () => {
         </div>
 
         {/* Panneau de Contrôle */}
-        <div className="w-full md:w-80 flex flex-col gap-3">
-          <div className={`flex-1 border-2 p-6 rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${
-            state.lastResult?.status === 'danger' ? 'bg-red-950/40 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : 'bg-zinc-900/40 border-green-900/40'
-          }`}>
-            <h2 className="text-[9px] font-orbitron text-zinc-500 mb-6 uppercase tracking-[0.4em]">Navigation Audio</h2>
-            
-            {state.lastResult ? (
-              <div className="animate-in slide-in-from-bottom-2 duration-300">
-                <p className={`text-2xl font-bold font-orbitron leading-tight uppercase tracking-tight ${
-                  state.lastResult.status === 'danger' ? 'text-red-500' : 'text-green-400'
-                }`}>
-                  {state.lastResult.text}
-                </p>
-                <div className="h-1 w-12 bg-green-500/20 mx-auto my-4 rounded-full"></div>
-                <p className="text-[10px] text-zinc-600 font-mono tracking-tighter">
-                  LATENCE_FLUX: 1.2s &bull; CONF: 98.4%
-                </p>
-              </div>
+        <div className="w-full md:w-80 flex flex-col gap-3 overflow-visible">
+          {/* Actions Principales - Toujours en haut sur mobile */}
+          <div className="order-1 space-y-3">
+            {!state.isActive ? (
+              <button 
+                onClick={startCamera} 
+                className="w-full py-5 bg-green-600 hover:bg-green-500 text-black font-orbitron font-bold rounded-2xl shadow-[0_4px_0_rgb(21,128,61)] active:translate-y-1 active:shadow-none transition-all text-xs tracking-widest flex items-center justify-center gap-3"
+              >
+                <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+                DÉMARRER
+              </button>
             ) : (
-              <div className="opacity-20 flex flex-col items-center">
-                <div className="w-16 h-1 w-full bg-zinc-800 rounded-full mb-2"></div>
-                <p className="text-xs font-mono">SCANNER IDLE</p>
-              </div>
+              <button 
+                onClick={stopCamera} 
+                className="w-full py-5 bg-red-600 hover:bg-red-500 text-white font-orbitron font-bold rounded-2xl shadow-[0_4px_0_rgb(153,27,27)] active:translate-y-1 active:shadow-none transition-all text-xs tracking-widest flex items-center justify-center gap-3"
+              >
+                <div className="w-2 h-2 bg-white rounded-sm"></div>
+                ARRÊTER
+              </button>
             )}
           </div>
 
-          <div className="p-4 bg-black border border-green-900/30 rounded-xl space-y-4">
-            <div className="space-y-2">
+          {/* Configuration Source - Très important sur mobile */}
+          <div className="order-2 p-4 bg-zinc-900/80 border border-green-900/30 rounded-xl space-y-4">
+            <div className="space-y-3">
               <label className="text-[10px] font-mono text-zinc-500 uppercase block">Source Vidéo</label>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <button 
                   onClick={() => setState(prev => ({ ...prev, isEsp32Mode: false, isBlynkMode: false }))}
-                  className={`flex-1 py-2 text-[9px] font-bold rounded border transition-all ${!state.isEsp32Mode && !state.isBlynkMode ? 'bg-green-600 text-black border-green-500' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}
+                  className={`flex-1 py-3 text-[10px] font-bold rounded-lg border transition-all ${!state.isEsp32Mode && !state.isBlynkMode ? 'bg-green-600 text-black border-green-500' : 'bg-zinc-950 text-zinc-600 border-zinc-800'}`}
                 >
                   LOCAL
                 </button>
                 <button 
                   onClick={() => setState(prev => ({ ...prev, isEsp32Mode: true, isBlynkMode: false }))}
-                  className={`flex-1 py-2 text-[9px] font-bold rounded border transition-all ${state.isEsp32Mode ? 'bg-green-600 text-black border-green-500' : 'bg-zinc-900 text-zinc-500 border-zinc-800 animate-pulse'}`}
+                  className={`flex-1 py-3 text-[10px] font-bold rounded-lg border transition-all ${state.isEsp32Mode ? 'bg-green-600 text-black border-green-500' : 'bg-zinc-950 text-zinc-600 border-zinc-800'}`}
                 >
                   ESP32
                 </button>
                 <button 
                   onClick={() => setState(prev => ({ ...prev, isBlynkMode: true, isEsp32Mode: false }))}
-                  className={`flex-1 py-2 text-[9px] font-bold rounded border transition-all ${state.isBlynkMode ? 'bg-blue-600 text-white border-blue-500' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}
+                  className={`flex-1 py-3 text-[10px] font-bold rounded-lg border transition-all ${state.isBlynkMode ? 'bg-blue-600 text-white border-blue-500' : 'bg-zinc-950 text-zinc-600 border-zinc-800'}`}
                 >
                   BLYNK
                 </button>
@@ -488,62 +485,55 @@ const App: React.FC = () => {
 
             {state.isBlynkMode ? (
               <div className="space-y-2 animate-in fade-in duration-300">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-mono text-blue-400 uppercase block">Blynk Cloud API</label>
-                  <a 
-                    href="https://blynk.cloud" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-[8px] text-zinc-500 hover:text-blue-400 underline uppercase"
-                  >
-                    Console Blynk
-                  </a>
-                </div>
                 <input 
                   type="text"
                   value={state.blynkToken}
                   onChange={(e) => setState(prev => ({ ...prev, blynkToken: e.target.value }))}
-                  placeholder="Auth Token (ex: u9_x...)"
-                  className="w-full bg-zinc-900 border border-blue-900/30 text-blue-400 text-[10px] p-2 rounded focus:outline-none focus:border-blue-500 font-mono"
+                  placeholder="Blynk Token"
+                  className="w-full bg-black border border-blue-900/30 text-blue-400 text-[11px] p-3 rounded-lg focus:outline-none focus:border-blue-500 font-mono"
                 />
                 <div className="flex gap-2">
                   <input 
                     type="text"
                     value={state.blynkPin}
                     onChange={(e) => setState(prev => ({ ...prev, blynkPin: e.target.value }))}
-                    placeholder="Pin (V1)"
-                    className="w-16 bg-zinc-900 border border-blue-900/30 text-blue-400 text-[10px] p-2 rounded focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="V1"
+                    className="w-16 bg-black border border-blue-900/30 text-blue-400 text-[11px] p-3 rounded-lg focus:outline-none focus:border-blue-500 font-mono"
                   />
                   <select 
                     value={state.blynkRegion}
                     onChange={(e) => setState(prev => ({ ...prev, blynkRegion: e.target.value }))}
-                    className="w-16 bg-zinc-900 border border-blue-900/30 text-blue-400 text-[10px] p-2 rounded focus:outline-none focus:border-blue-500 font-mono"
+                    className="flex-1 bg-black border border-blue-900/30 text-blue-400 text-[11px] p-3 rounded-lg focus:outline-none focus:border-blue-500 font-mono"
                   >
                     <option value="ny3">NY3</option>
                     <option value="fra1">FRA1</option>
                     <option value="lon1">LON1</option>
                     <option value="sgp1">SGP1</option>
                   </select>
-                  <div className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded p-2 flex items-center justify-center overflow-hidden">
-                    <span className="text-[6px] text-zinc-500 uppercase font-mono truncate">
-                      {state.blynkData ? `Data: ${state.blynkData.substring(0, 15)}...` : "En attente..."}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-2 bg-blue-950/10 border border-blue-900/20 rounded text-[8px] text-blue-400/70 space-y-1">
-                  <p className="font-bold uppercase tracking-tighter">💡 Rappel Process :</p>
-                  <p>1. L'ESP32 upload l'image sur un serveur.</p>
-                  <p>2. L'ESP32 écrit l'URL dans le Pin <b>{state.blynkPin}</b>.</p>
-                  <p>3. L'IA récupère l'image via Blynk toutes les 2s.</p>
                 </div>
               </div>
-            ) : !state.isEsp32Mode ? (
-              <div className="space-y-2">
-                <label className="text-[10px] font-mono text-zinc-500 uppercase block">Caméra</label>
+            ) : state.isEsp32Mode ? (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <input 
+                  type="text"
+                  value={state.esp32Url}
+                  onChange={(e) => setState(prev => ({ ...prev, esp32Url: e.target.value }))}
+                  placeholder="URL ESP32 (ex: http://.../stream)"
+                  className="w-full bg-black border border-zinc-800 text-green-500 text-[11px] p-3 rounded-lg focus:outline-none focus:border-green-500 font-mono"
+                />
+                <button 
+                  onClick={checkConnection}
+                  className="w-full py-3 text-[10px] bg-green-900/20 text-green-500 rounded-lg border border-green-900/30 uppercase font-bold"
+                >
+                  Tester Connexion
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-in fade-in duration-300">
                 <select 
                   value={state.selectedCameraId}
                   onChange={(e) => setState(prev => ({ ...prev, selectedCameraId: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-800 text-green-500 text-[10px] p-2 rounded focus:outline-none focus:border-green-500"
+                  className="w-full bg-black border border-zinc-800 text-green-500 text-[11px] p-3 rounded-lg focus:outline-none focus:border-green-500"
                 >
                   {availableCameras.map(camera => (
                     <option key={camera.deviceId} value={camera.deviceId}>
@@ -552,99 +542,40 @@ const App: React.FC = () => {
                   ))}
                 </select>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-mono text-zinc-500 uppercase block">Paramètres ESP32</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] text-zinc-600 uppercase">Mode CORS</span>
-                    <button 
-                      onClick={() => setState(prev => ({ ...prev, useCors: !prev.useCors }))}
-                      className={`w-8 h-4 rounded-full relative transition-colors ${state.useCors ? 'bg-green-600' : 'bg-zinc-800'}`}
-                    >
-                      <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${state.useCors ? 'left-4.5' : 'left-0.5'}`}></div>
-                    </button>
-                  </div>
-                </div>
-                <input 
-                  type="text"
-                  value={state.esp32Url}
-                  onChange={(e) => setState(prev => ({ ...prev, esp32Url: e.target.value }))}
-                  placeholder="http://192.168.100.139:81/stream"
-                  className="w-full bg-zinc-900 border border-zinc-800 text-green-500 text-[10px] p-2 rounded focus:outline-none focus:border-green-500 font-mono"
-                />
-                <div className="flex gap-2">
-                  <button 
-                    onClick={checkConnection}
-                    className="flex-1 py-1 text-[8px] bg-green-900/20 hover:bg-green-900/40 text-green-500 text-center rounded border border-green-900/30 uppercase transition-colors font-bold"
-                  >
-                    Vérifier la connexion
-                  </button>
-                  <a 
-                    href={state.esp32Url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex-1 py-1 text-[8px] bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-center rounded border border-zinc-700 uppercase transition-colors"
-                  >
-                    Ouvrir le flux seul
-                  </a>
-                </div>
-                <div className="p-2 bg-amber-950/20 border border-amber-900/30 rounded text-[8px] text-amber-500/80 space-y-1">
-                  <p className="font-bold uppercase tracking-tighter">🚀 Solution Cloud → Local :</p>
-                  <p>Bien que l'app soit sur Internet, c'est <b>votre appareil</b> qui se connecte à l'ESP32.</p>
-                  <p>1. Vérifiez que votre téléphone/PC est sur le <b>MÊME WiFi</b> que l'ESP32.</p>
-                  <p>2. Dans Chrome, désactivez : <code className="bg-black/40 px-1">chrome://flags/#block-insecure-private-network-requests</code></p>
-                  <p>3. Autorisez le "Contenu non sécurisé" dans les réglages du site (clic sur le cadenas).</p>
-                </div>
-                {!state.useCors && (
-                  <p className="text-[8px] text-amber-500/70 italic">
-                    Note: Sans CORS, l'analyse IA peut être bloquée par le navigateur.
-                  </p>
-                )}
-              </div>
             )}
-
-            <div className="pt-2 border-t border-green-900/20 space-y-2">
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="opacity-50 uppercase">Développeur:</span>
-                <span className="text-green-500 font-bold">ALIOU ALI</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="opacity-50 uppercase">Logiciel:</span>
-                <span className="text-amber-500 font-bold">V-ASSIST 1.3</span>
-              </div>
-            </div>
           </div>
 
-          {!state.isActive ? (
-            <button 
-              onClick={startCamera} 
-              className="w-full py-5 bg-green-600 hover:bg-green-500 text-black font-orbitron font-bold rounded-2xl shadow-[0_6px_0_rgb(21,128,61)] active:translate-y-1 active:shadow-none transition-all text-sm tracking-widest"
-            >
-              DÉMARRER LE PROGRAMME
-            </button>
-          ) : (
-            <button 
-              onClick={stopCamera} 
-              className="w-full py-5 bg-zinc-800 text-zinc-500 font-orbitron font-bold rounded-2xl border border-zinc-700 active:scale-95 transition-all text-sm tracking-widest"
-            >
-              DÉCONNEXION SYSTÈME
-            </button>
-          )}
+          {/* Affichage Résultat */}
+          <div className={`order-3 border-2 p-4 rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${
+            state.lastResult?.status === 'danger' ? 'bg-red-950/40 border-red-500' : 'bg-zinc-900/40 border-green-900/40'
+          }`}>
+            <h2 className="text-[8px] font-orbitron text-zinc-500 mb-2 uppercase tracking-widest">Analyse IA</h2>
+            {state.lastResult ? (
+              <p className={`text-lg font-bold font-orbitron uppercase ${state.lastResult.status === 'danger' ? 'text-red-500' : 'text-green-400'}`}>
+                {state.lastResult.text}
+              </p>
+            ) : (
+              <p className="text-[10px] font-mono opacity-30 italic">EN ATTENTE DE FLUX...</p>
+            )}
+          </div>
 
+          {/* Erreurs */}
           {state.error && (
-            <div className="p-2 bg-red-900/20 border border-red-900/40 rounded-lg space-y-2">
-              <p className="text-red-500 text-[9px] text-center font-mono animate-pulse">{state.error}</p>
+            <div className="order-4 p-2 bg-red-900/20 border border-red-900/40 rounded-lg">
+              <p className="text-red-500 text-[8px] text-center font-mono">{state.error}</p>
               {state.error.includes("Clé API") && (
-                <button 
-                  onClick={handleOpenKeySelector}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded uppercase transition-all"
-                >
-                  Configurer Clé API
+                <button onClick={handleOpenKeySelector} className="w-full mt-2 py-1.5 bg-blue-600 text-white text-[9px] font-bold rounded uppercase">
+                  Fixer Clé API
                 </button>
               )}
             </div>
           )}
+
+          {/* Infos Développeur - Plus discret sur mobile */}
+          <div className="order-5 p-3 bg-black/40 border border-zinc-900 rounded-xl flex justify-between items-center text-[8px] font-mono opacity-50">
+            <div>DEV: <span className="text-green-500">ALIOU ALI</span></div>
+            <div>SYS: <span className="text-amber-500">V1.3</span></div>
+          </div>
         </div>
       </main>
 
